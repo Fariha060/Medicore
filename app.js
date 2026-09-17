@@ -54,47 +54,60 @@ function router(view) {
   if (window.lucide) lucide.createIcons();
 }
 
-// --- 1. ADMIN OVERVIEW VIEW ---
+function renderSearchBar(placeholder) {
+  return `
+    <div class="relative w-full sm:w-64">
+      <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-slate-400"></i>
+      <input 
+        type="text" 
+        id="view-search-input"
+        oninput="store.setSearchQuery(this.value)"
+        value="${store.state.searchQuery}"
+        placeholder="${placeholder}" 
+        class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-medicore-500 shadow-sm"
+      >
+    </div>
+  `;
+}
+
+// 1. OVERVIEW VIEW
 function renderOverviewUI() {
   const totalRevenue = store.state.invoices.reduce((acc, inv) => acc + Number(inv.amount), 0);
   const criticalPatients = store.state.patients.filter(p => p.status === 'Critical').length;
 
   return `
-    <!-- Top Metric Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Inpatients</span>
         <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">${store.state.patients.length}</h2>
-        <p class="text-[11px] text-rose-500 font-semibold mt-1">${criticalPatients} Critical Ward Cases</p>
+        <p class="text-[11px] text-rose-500 font-semibold mt-1">${criticalPatients} Critical Cases</p>
       </div>
       <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Duty Doctors</span>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Active Medical Roster</span>
         <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">${store.state.doctors.length}</h2>
-        <p class="text-[11px] text-emerald-600 font-semibold mt-1">Full Shift Coverage</p>
+        <p class="text-[11px] text-emerald-600 font-semibold mt-1">Full Duty Shift</p>
       </div>
       <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Billing Revenue</span>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Billing POS Revenue</span>
         <h2 class="text-2xl font-extrabold text-emerald-600 mt-1">$${totalRevenue.toLocaleString()}</h2>
-        <p class="text-[11px] text-slate-500 mt-1">${store.state.invoices.length} Settled Transactions</p>
+        <p class="text-[11px] text-slate-500 mt-1">${store.state.invoices.length} Invoices Settled</p>
       </div>
       <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">System Load</span>
-        <h2 class="text-2xl font-extrabold text-medicore-600 mt-1">99.8% Optimal</h2>
-        <p class="text-[11px] text-slate-500 mt-1">Latency: 14ms</p>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Emergency Beds Occupied</span>
+        <h2 class="text-2xl font-extrabold text-medicore-600 mt-1">${store.state.beds.filter(b => b.status === 'Occupied').length} / ${store.state.beds.length}</h2>
+        <p class="text-[11px] text-slate-500 mt-1">Ward Utilization Rate</p>
       </div>
     </div>
 
-    <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div class="lg:col-span-2 bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm h-80">
-        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Hospital Operational Analytics</h3>
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-2">Hospital Admissions vs. Emergency Operational Flow</h3>
         <div class="h-64"><canvas id="overviewChart"></canvas></div>
       </div>
 
-      <!-- Admin System Audit Trail -->
       <div class="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
         <div>
-          <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Admin Audit Trail Log</h3>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-3">Admin Audit Log Trail</h3>
           <div class="space-y-3 overflow-y-auto max-h-56 pr-1">
             ${store.state.logs.map(log => `
               <div class="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-2 text-xs">
@@ -112,18 +125,29 @@ function renderOverviewUI() {
   `;
 }
 
-// --- 2. PATIENTS DIRECTORY ---
+// 2. PATIENT DIRECTORY VIEW
 function renderPatientsUI() {
+  const q = store.state.searchQuery;
+  const filtered = store.state.patients.filter(p => 
+    p.name.toLowerCase().includes(q) || 
+    p.id.toLowerCase().includes(q) || 
+    p.dept.toLowerCase().includes(q)
+  );
+
   return `
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
       <div>
         <h2 class="font-bold text-base text-slate-900 dark:text-white">Inpatient Records (EHR)</h2>
-        <p class="text-xs text-slate-500">Live admission data and clinical tracking</p>
+        <p class="text-xs text-slate-500">Live admission files, status tracking, and clinical details</p>
       </div>
-      <button onclick="UIController.openModal('modal-patient')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
-        <i data-lucide="user-plus" class="w-4 h-4"></i> Admit Patient
-      </button>
+      <div class="flex items-center gap-2">
+        ${renderSearchBar('Search patient, MRN, dept...')}
+        <button onclick="UIController.openModal('modal-patient')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Admit Patient
+        </button>
+      </div>
     </div>
+
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
       <table class="w-full text-left text-xs">
         <thead class="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold border-b dark:border-slate-800">
@@ -137,14 +161,14 @@ function renderPatientsUI() {
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800 dark:text-slate-200">
-          ${store.state.patients.map(p => `
+          ${filtered.length > 0 ? filtered.map(p => `
             <tr>
               <td class="p-3 font-mono font-bold text-slate-400">${p.id}</td>
               <td class="p-3 font-bold text-slate-900 dark:text-white">${p.name}</td>
               <td class="p-3">${p.age} Y / ${p.gender}</td>
               <td class="p-3">${p.dept}</td>
               <td class="p-3">
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${p.status === 'Critical' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${p.status === 'Critical' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : p.status === 'Observation' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}">
                   ${p.status}
                 </span>
               </td>
@@ -152,27 +176,40 @@ function renderPatientsUI() {
                 <button onclick="PatientController.delete('${p.id}')" class="text-xs text-rose-600 hover:text-rose-800 font-bold">Discharge</button>
               </td>
             </tr>
-          `).join('')}
+          `).join('') : `
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">No patient records matching "${q}"</td></tr>
+          `}
         </tbody>
       </table>
     </div>
   `;
 }
 
-// --- 3. MEDICAL STAFF ---
+// 3. MEDICAL STAFF VIEW
 function renderDoctorsUI() {
+  const q = store.state.searchQuery;
+  const filtered = store.state.doctors.filter(d => 
+    d.name.toLowerCase().includes(q) || 
+    d.spec.toLowerCase().includes(q) ||
+    d.room.toLowerCase().includes(q)
+  );
+
   return `
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
       <div>
         <h2 class="font-bold text-base text-slate-900 dark:text-white">Medical Roster</h2>
         <p class="text-xs text-slate-500">Physicians, consultants, and duty schedules</p>
       </div>
-      <button onclick="UIController.openModal('modal-doctor')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
-        <i data-lucide="plus" class="w-4 h-4"></i> Add Doctor
-      </button>
+      <div class="flex items-center gap-2">
+        ${renderSearchBar('Search doctor, specialty...')}
+        <button onclick="UIController.openModal('modal-doctor')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Add Doctor
+        </button>
+      </div>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      ${store.state.doctors.map(d => `
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${filtered.length > 0 ? filtered.map(d => `
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div class="flex justify-between items-start mb-2">
             <div>
@@ -184,25 +221,88 @@ function renderDoctorsUI() {
             </span>
           </div>
           <div class="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between text-xs text-slate-500">
-            <span>Clinic: <b>${d.room}</b></span>
+            <span>Room / Ward: <b>${d.room}</b></span>
           </div>
         </div>
-      `).join('')}
+      `).join('') : `<div class="col-span-full p-4 text-center text-slate-400">No doctors matching "${q}"</div>`}
     </div>
   `;
 }
 
-// --- 4. BILLING & POS INVOICING ---
-function renderBillingUI() {
+// 4. OPD TOKEN QUEUE VIEW
+function renderAppointmentsUI() {
+  const q = store.state.searchQuery;
+  const filtered = store.state.appointments.filter(a => 
+    a.patient.toLowerCase().includes(q) || 
+    a.doctor.toLowerCase().includes(q) ||
+    a.token.toLowerCase().includes(q)
+  );
+
   return `
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="font-bold text-base text-slate-900 dark:text-white">OPD Token Queue & Appointments</h2>
+        <p class="text-xs text-slate-500">Outpatient scheduling and token allocation</p>
+      </div>
+      ${renderSearchBar('Search token, patient, doctor...')}
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold border-b dark:border-slate-800">
+          <tr>
+            <th class="p-3">Token #</th>
+            <th class="p-3">Patient Name</th>
+            <th class="p-3">Attending Physician</th>
+            <th class="p-3">Time</th>
+            <th class="p-3">Clinic Room</th>
+            <th class="p-3">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 dark:text-slate-200">
+          ${filtered.length > 0 ? filtered.map(a => `
+            <tr>
+              <td class="p-3 font-mono font-bold text-medicore-600">${a.token}</td>
+              <td class="p-3 font-bold text-slate-900 dark:text-white">${a.patient}</td>
+              <td class="p-3">${a.doctor}</td>
+              <td class="p-3 font-mono">${a.time}</td>
+              <td class="p-3">${a.room}</td>
+              <td class="p-3">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${a.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : a.status === 'In Consultation' ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}">
+                  ${a.status}
+                </span>
+              </td>
+            </tr>
+          `).join('') : `
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">No appointment records matching "${q}"</td></tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// 5. BILLING POS VIEW
+function renderBillingUI() {
+  const q = store.state.searchQuery;
+  const filtered = store.state.invoices.filter(inv => 
+    inv.patient.toLowerCase().includes(q) || 
+    inv.id.toLowerCase().includes(q) || 
+    inv.dept.toLowerCase().includes(q)
+  );
+
+  return `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
       <div>
         <h2 class="font-bold text-slate-900 dark:text-white">Patient Billing & Counter Cash POS</h2>
         <p class="text-xs text-slate-500">Live fee collection and automated receipts</p>
       </div>
-      <button onclick="UIController.openModal('modal-billing')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5">
-        <i data-lucide="receipt" class="w-4 h-4"></i> Create Invoice
-      </button>
+      <div class="flex items-center gap-2">
+        ${renderSearchBar('Search invoice # or patient...')}
+        <button onclick="UIController.openModal('modal-billing')" class="bg-medicore-600 hover:bg-medicore-700 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5">
+          <i data-lucide="receipt" class="w-4 h-4"></i> Create Invoice
+        </button>
+      </div>
     </div>
 
     <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -213,39 +313,52 @@ function renderBillingUI() {
             <th class="p-3">Patient Name</th>
             <th class="p-3">Category</th>
             <th class="p-3">Amount ($)</th>
+            <th class="p-3">Date</th>
             <th class="p-3">Status</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-800 dark:text-slate-200">
-          ${store.state.invoices.map(inv => `
+          ${filtered.length > 0 ? filtered.map(inv => `
             <tr>
               <td class="p-3 font-mono font-bold text-slate-400">${inv.id}</td>
               <td class="p-3 font-bold text-slate-900 dark:text-white">${inv.patient}</td>
               <td class="p-3">${inv.dept}</td>
               <td class="p-3 font-bold text-medicore-600">$${inv.amount}</td>
+              <td class="p-3 font-mono text-slate-400">${inv.date}</td>
               <td class="p-3">
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}">
                   ${inv.status}
                 </span>
               </td>
             </tr>
-          `).join('')}
+          `).join('') : `
+            <tr><td colspan="6" class="p-4 text-center text-slate-400">No invoices matching "${q}"</td></tr>
+          `}
         </tbody>
       </table>
     </div>
   `;
 }
 
-// --- 5. PHARMACY STOCK MANAGER ---
+// 6. PHARMACY INVENTORY VIEW
 function renderPharmacyUI() {
+  const q = store.state.searchQuery;
+  const filtered = store.state.pharmacy.filter(item => 
+    item.name.toLowerCase().includes(q) || 
+    item.category.toLowerCase().includes(q)
+  );
+
   return `
-    <div class="mb-4">
-      <h2 class="font-bold text-slate-900 dark:text-white">Pharmacy Stock & Inventory</h2>
-      <p class="text-xs text-slate-500">Pharmaceutical inventory tracking and restock controls</p>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="font-bold text-slate-900 dark:text-white">Pharmacy Stock & Inventory</h2>
+        <p class="text-xs text-slate-500">Pharmaceutical supply levels and auto-restock triggers</p>
+      </div>
+      ${renderSearchBar('Search medicine or category...')}
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      ${store.state.pharmacy.map(item => `
+      ${filtered.length > 0 ? filtered.map(item => `
         <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start">
@@ -259,25 +372,98 @@ function renderPharmacyUI() {
             + Restock (100 Units)
           </button>
         </div>
-      `).join('')}
+      `).join('') : `<div class="col-span-full p-4 text-center text-slate-400">No medical supplies matching "${q}"</div>`}
     </div>
   `;
 }
 
-// --- OTHER VIEWS ---
-function renderAppointmentsUI() {
-  return `<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"><h3 class="font-bold mb-2">Live OPD Token Queue</h3><p class="text-xs text-slate-400">42 Patient Consultations scheduled today across 4 clinics.</p></div>`;
-}
-
+// 7. EMERGENCY BEDS VIEW
 function renderBedsUI() {
-  return `<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"><h3 class="font-bold mb-2">Emergency Ward Bed Map</h3><p class="text-xs text-slate-400">8 Vacant Emergency Beds / 4 Occupied Critical Units.</p></div>`;
+  const q = store.state.searchQuery;
+  const filtered = store.state.beds.filter(b => 
+    b.unit.toLowerCase().includes(q) || 
+    b.patient.toLowerCase().includes(q) ||
+    b.dept.toLowerCase().includes(q)
+  );
+
+  return `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="font-bold text-base text-slate-900 dark:text-white">Emergency Ward Bed Allocation</h2>
+        <p class="text-xs text-slate-500">Real-time ICU and emergency bed tracking</p>
+      </div>
+      ${renderSearchBar('Search bed unit or patient...')}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${filtered.length > 0 ? filtered.map(b => `
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-mono font-bold text-slate-900 dark:text-white">${b.unit}</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${b.status === 'Occupied' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'}">
+              ${b.status}
+            </span>
+          </div>
+          <p class="text-xs text-slate-500">Patient: <b class="text-slate-800 dark:text-slate-200">${b.patient}</b></p>
+          <p class="text-[11px] text-slate-400 mt-1">Ward: ${b.dept}</p>
+        </div>
+      `).join('') : `<div class="col-span-full p-4 text-center text-slate-400">No bed allocation records matching "${q}"</div>`}
+    </div>
+  `;
 }
 
+// 8. LAB DIAGNOSTICS VIEW
 function renderDiagnosticsUI() {
-  return `<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white"><h3 class="font-bold mb-2">Laboratory & Radiology Worklist</h3><p class="text-xs text-slate-400">18 Pending MRI/Blood Test requisitions processing.</p></div>`;
+  const q = store.state.searchQuery;
+  const filtered = store.state.diagnostics.filter(d => 
+    d.id.toLowerCase().includes(q) || 
+    d.patient.toLowerCase().includes(q) ||
+    d.test.toLowerCase().includes(q)
+  );
+
+  return `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="font-bold text-base text-slate-900 dark:text-white">Lab & Diagnostics Worklist</h2>
+        <p class="text-xs text-slate-500">Pathology and Radiology testing status</p>
+      </div>
+      ${renderSearchBar('Search test, patient, lab ID...')}
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold border-b dark:border-slate-800">
+          <tr>
+            <th class="p-3">Order #</th>
+            <th class="p-3">Patient Name</th>
+            <th class="p-3">Diagnostic Test</th>
+            <th class="p-3">Department</th>
+            <th class="p-3">Status</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 dark:text-slate-200">
+          ${filtered.length > 0 ? filtered.map(d => `
+            <tr>
+              <td class="p-3 font-mono font-bold text-slate-400">${d.id}</td>
+              <td class="p-3 font-bold text-slate-900 dark:text-white">${d.patient}</td>
+              <td class="p-3 font-semibold text-medicore-600">${d.test}</td>
+              <td class="p-3">${d.dept}</td>
+              <td class="p-3">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${d.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' : d.status === 'Processing' ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}">
+                  ${d.status}
+                </span>
+              </td>
+            </tr>
+          `).join('') : `
+            <tr><td colspan="5" class="p-4 text-center text-slate-400">No lab diagnostics matching "${q}"</td></tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
-// --- CONTROLLERS ---
+// CONTROLLERS
 const PatientController = {
   add: (e) => {
     e.preventDefault();
@@ -355,7 +541,7 @@ const ThemeController = {
   }
 };
 
-// --- CHART INITIALIZER ---
+// CHART INITIALIZER
 function initCharts() {
   const ctx = document.getElementById('overviewChart');
   if (!ctx) return;
@@ -374,7 +560,7 @@ function initCharts() {
           tension: 0.3
         },
         {
-          label: 'Emergency Cases',
+          label: 'Emergency Ward Flow',
           data: [8, 12, 6, 15, 18, 14, 9],
           borderColor: '#e11d48',
           backgroundColor: 'transparent',
@@ -390,19 +576,39 @@ function initCharts() {
   });
 }
 
-// --- STATE SUBSCRIBER ---
+// STATE SUBSCRIBER
 store.subscribe((state) => {
   const badgeP = document.getElementById("badge-patients");
   const badgeD = document.getElementById("badge-doctors");
+  const badgeA = document.getElementById("badge-appointments");
+  const badgeB = document.getElementById("badge-billing");
+  const badgePh = document.getElementById("badge-pharmacy");
+  const badgeBd = document.getElementById("badge-beds");
+  const badgeDg = document.getElementById("badge-diagnostics");
+
   if (badgeP) badgeP.innerText = state.patients.length;
   if (badgeD) badgeD.innerText = state.doctors.length;
+  if (badgeA) badgeA.innerText = state.appointments.length;
+  if (badgeB) badgeB.innerText = state.invoices.length;
+  if (badgePh) badgePh.innerText = state.pharmacy.length;
+  if (badgeBd) badgeBd.innerText = state.beds.length;
+  if (badgeDg) badgeDg.innerText = state.diagnostics.length;
   
   ThemeController.apply(state.theme);
   
   const activeNav = document.querySelector('.nav-btn.active');
   if (activeNav) {
+    const activeSearch = document.getElementById('view-search-input');
+    const cursor = activeSearch ? activeSearch.selectionStart : null;
+    
     const viewName = activeNav.id.replace('nav-', '');
     router(viewName);
+    
+    const newSearch = document.getElementById('view-search-input');
+    if (newSearch && cursor !== null) {
+      newSearch.focus();
+      newSearch.setSelectionRange(cursor, cursor);
+    }
   }
 });
 
